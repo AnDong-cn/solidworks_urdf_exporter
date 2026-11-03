@@ -23,16 +23,13 @@ namespace TestRunner
 
         public static int Main(string[] args)
         {
-            string solutionDir =
-                Path.GetDirectoryName( // sw2urdf
-                Path.GetDirectoryName( // TestRunner
-                Path.GetDirectoryName( // bin
-                Path.GetDirectoryName( // x64
-                Path.GetDirectoryName( // net452
-                    AppDomain.CurrentDomain.BaseDirectory // Debug
-                )))));
-
-            string testAssembly = Path.Combine(solutionDir, "SW2URDF\\bin\\x64\\Debug\\SW2URDF.dll");
+            DirectoryInfo solutionDir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (solutionDir != null && !File.Exists(Path.Combine(solutionDir.FullName, "SW2URDF.sln")))
+            {
+                solutionDir = solutionDir.Parent;
+            }
+            string testAssembly = args != null && args.Length > 1 ? Path.GetFullPath(args[1]) :
+                Path.Combine(solutionDir.FullName, "SW2URDF", "bin", "x64", "Debug", "SW2URDF.dll");
             string typeName = null;
 
             using (var runner = AssemblyRunner.WithAppDomain(testAssembly))

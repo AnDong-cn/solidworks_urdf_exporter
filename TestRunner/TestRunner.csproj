@@ -3,7 +3,9 @@
   <PropertyGroup>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <TargetFramework>net452</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <TargetFrameworkRootPath Condition=" '$(TargetFrameworkRootPath)' == '' And Exists('$(MSBuildProjectDirectory)\..\artifacts\tools\net48\build\.NETFramework\v4.8\mscorlib.dll') ">$(MSBuildProjectDirectory)\..\artifacts\tools\net48\build\</TargetFrameworkRootPath>
     <ApplicationIcon />
     <OutputType>Exe</OutputType>
     <StartupObject />

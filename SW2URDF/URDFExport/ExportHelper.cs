@@ -26,6 +26,7 @@ using SolidWorks.Interop.swconst;
 using SW2URDF.ROS;
 using SW2URDF.URDF;
 using SW2URDF.URDFExport.CSV;
+using SW2URDF.UI;
 using SW2URDF.Utilities;
 using System;
 using System.Collections.Generic;
@@ -62,6 +63,9 @@ namespace SW2URDF.URDFExport
         private double mHideTransitionSpeed;
 
         private UserProgressBar progressBar;
+
+        private readonly List<string> stepExportFailures = new List<string>();
+        internal IMessageBox StepExportMessageBox = new MessageBoxHelper();
 
         [XmlIgnore]
         public ModelDoc2 ActiveSWModel;
@@ -144,6 +148,7 @@ namespace SW2URDF.URDFExport
         // Beginning method for exporting the full package
         public void ExportRobot(bool exportSTL = true, MeshExportFormat meshFormat = MeshExportFormat.STL)
         {
+            stepExportFailures.Clear();
             //Setting up the progress bar
             logger.Info("Beginning the export process");
             int progressBarBound = CommonSwOperations.GetCount(URDFRobot.BaseLink);
@@ -231,6 +236,8 @@ namespace SW2URDF.URDFExport
             URDFRobot.WriteURDF(uWriter.writer);
 
             ImportExport.WriteRobotToCSV(URDFRobot, windowsCSVFileName);
+
+            ReportSTEPFailures();
 
             logger.Info("Copying log file");
             CopyLogFile(package);
@@ -453,6 +460,7 @@ namespace SW2URDF.URDFExport
                 logger.Warn("Exporting STL for link " + link.Name + " failed with error " + errors + 
                     " or warnings " + warnings);
             }
+            TrySaveSTEP(link, windowsMeshFilename);
             CommonSwOperations.HideComponents(ActiveSWModel, link.SWComponents);
 
             bool success = CorrectSTLMesh(windowsMeshFilename);
@@ -466,6 +474,7 @@ namespace SW2URDF.URDFExport
 
         public void ExportLink(bool zIsUp)
         {
+            stepExportFailures.Clear();
             CreateBaseRefOrigin(zIsUp);
             MathTransform coordSysTransform =
                 ActiveSWModel.Extension.GetCoordinateSystemTransformByName("Origin_global");
@@ -497,6 +506,7 @@ namespace SW2URDF.URDFExport
 
             ActiveSWModel.Extension.SaveAs(windowsMeshFileName, (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
                 (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+            TrySaveSTEP(URDFRobot.BaseLink, windowsMeshFileName);
             URDFRobot.BaseLink.Visual.Geometry.Mesh.Filename = meshFileName;
             URDFRobot.BaseLink.Collision.Geometry.Mesh.Filename = meshFileName;
 
@@ -515,6 +525,167 @@ namespace SW2URDF.URDFExport
             URDFRobot.WriteURDF(uWriter.writer);
 
             ResetUserPreferences();
+            ReportSTEPFailures();
+            CopyLogFile(package);
+        }
+
+        // Export the original CAD bodies while the STL's link visibility and output frame are active.
+        // Keeping this separate from SaveSTL also covers the single-part exporter.
+        private void TrySaveSTEP(Link link, string windowsMeshFilename)
+        {
+            if (link.isFixedFrame)
+            {
+                return;
+            }
+
+            string filename = Path.ChangeExtension(windowsMeshFilename, ".STEP");
+            string temporaryFilename = Path.Combine(Path.GetDirectoryName(filename),
+                "." + Path.GetFileNameWithoutExtension(filename) + "." + Guid.NewGuid().ToString("N") + ".STEP");
+            try
+            {
+                SelectionMgr selection = ActiveSWModel.SelectionManager;
+                bool atomicSave = iSwApp.GetUserPreferenceToggle((int)swUserPreferenceToggle_e.swStepExportAtomicSave);
+                selection.SuspendSelectionList();
+                try
+                {
+                    List<Body2> bodies = new List<Body2>();
+                    if (ActiveSWModel.GetType() == (int)swDocumentTypes_e.swDocPART)
+                    {
+                        PartDoc part = (PartDoc)ActiveSWModel;
+                        AddSTEPBodies(bodies, part.GetBodies2((int)swBodyType_e.swSolidBody, true));
+                        AddSTEPBodies(bodies, part.GetBodies2((int)swBodyType_e.swSheetBody, true));
+                    }
+                    else
+                    {
+                        CollectSTEPBodies(link.SWComponents, new HashSet<string>(), bodies);
+                    }
+
+                    if (bodies.Count == 0)
+                    {
+                        throw new InvalidOperationException("No exportable CAD bodies were found for this link.");
+                    }
+                    foreach (Body2 body in bodies)
+                    {
+                        if (!body.Select2(true, null))
+                        {
+                            throw new InvalidOperationException("A link body could not be selected for STEP export.");
+                        }
+                    }
+
+                    iSwApp.SetUserPreferenceToggle((int)swUserPreferenceToggle_e.swStepExportAtomicSave, false);
+                    if (iSwApp.GetUserPreferenceToggle((int)swUserPreferenceToggle_e.swStepExportAtomicSave))
+                    {
+                        throw new InvalidOperationException("Could not disable separate STEP files per component.");
+                    }
+
+                    string coordinateSystem = ActiveSWModel.Extension.GetUserPreferenceString(
+                        (int)swUserPreferenceStringValue_e.swFileSaveAsCoordinateSystem,
+                        (int)swUserPreferenceOption_e.swDetailingNoOptionSpecified);
+                    logger.Info(link.Name + ": Exporting STEP to " + filename +
+                        " with STL coordinate frame '" + coordinateSystem + "' and " + bodies.Count + " bodies");
+                    int errors = 0;
+                    int warnings = 0;
+                    bool saved = ActiveSWModel.Extension.SaveAs(temporaryFilename,
+                        (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                        (int)swSaveAsOptions_e.swSaveAsOptions_Silent | (int)swSaveAsOptions_e.swSaveAsOptions_Copy,
+                        null, ref errors, ref warnings);
+                    if (!saved || errors != 0 || !File.Exists(temporaryFilename) || new FileInfo(temporaryFilename).Length == 0)
+                    {
+                        throw new IOException("STEP save failed (errors=" + errors + ", warnings=" + warnings + ").");
+                    }
+                    if (warnings != 0)
+                    {
+                        logger.Warn(link.Name + ": STEP export completed with warnings " + warnings);
+                    }
+                    if (File.Exists(filename))
+                    {
+                        File.Replace(temporaryFilename, filename, null);
+                    }
+                    else
+                    {
+                        File.Move(temporaryFilename, filename);
+                    }
+                }
+                finally
+                {
+                    try
+                    {
+                        iSwApp.SetUserPreferenceToggle((int)swUserPreferenceToggle_e.swStepExportAtomicSave, atomicSave);
+                    }
+                    finally
+                    {
+                        selection.ResumeSelectionList2(false);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                string failure = link.Name + ": " + filename + " — " + e.Message;
+                if (File.Exists(filename))
+                {
+                    failure += " The previous STEP file was not updated.";
+                }
+                stepExportFailures.Add(failure);
+                logger.Error("STEP export failed: " + failure, e);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(temporaryFilename))
+                    {
+                        File.Delete(temporaryFilename);
+                    }
+                }
+                catch (Exception e)
+                {
+                    logger.Warn("Could not remove temporary STEP file " + temporaryFilename, e);
+                }
+            }
+        }
+
+        private static void AddSTEPBodies(List<Body2> bodies, object bodyObjects)
+        {
+            if (bodyObjects is object[] array)
+            {
+                foreach (Body2 body in array)
+                {
+                    bodies.Add(body);
+                }
+            }
+        }
+
+        private static void CollectSTEPBodies(IEnumerable<Component2> components, HashSet<string> visited,
+            List<Body2> bodies)
+        {
+            foreach (Component2 component in components)
+            {
+                if (!visited.Add(component.Name2) || component.IsSuppressed() || component.IsHidden(false))
+                {
+                    continue;
+                }
+                AddSTEPBodies(bodies, component.GetBodies3((int)swBodyType_e.swSolidBody, out _));
+                AddSTEPBodies(bodies, component.GetBodies3((int)swBodyType_e.swSheetBody, out _));
+                if (component.GetChildren() is object[] children)
+                {
+                    List<Component2> childComponents = new List<Component2>();
+                    foreach (Component2 child in children)
+                    {
+                        childComponents.Add(child);
+                    }
+                    CollectSTEPBodies(childComponents, visited, bodies);
+                }
+            }
+        }
+
+        private void ReportSTEPFailures()
+        {
+            if (stepExportFailures.Count > 0)
+            {
+                StepExportMessageBox.Show("The original export completed, but STEP export failed for " +
+                    stepExportFailures.Count + " link(s):\n\n" + string.Join("\n", stepExportFailures) +
+                    "\n\nSee the export log for details.");
+            }
         }
 
         //Writes an empty header to the STL to get rid of the BS that SolidWorks adds to a binary STL file

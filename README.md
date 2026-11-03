@@ -1,5 +1,7 @@
 # SolidWorks to URDF Exporter
 
+This fork adds per-link STEP export alongside STL for SolidWorks 2025 / VS2022. See [build, validation, installation and rollback instructions](STEP-EXPORT.md).
+
 Authored and maintained by [Stephen Brawner](brawner@gmail.com). Past supporters include [PickNik Consulting](https://picknik.ai), Verb Surgical, Open Robotics, and Willow Garage. 
 
 ## Latest Release

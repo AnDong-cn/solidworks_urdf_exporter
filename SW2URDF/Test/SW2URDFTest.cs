@@ -50,6 +50,8 @@ namespace SW2URDF.Test
 
         public static string GetSolutionDirectory()
         {
+            string testRoot = System.Environment.GetEnvironmentVariable("SW2URDF_TEST_ROOT");
+            if (!string.IsNullOrEmpty(testRoot)) return testRoot;
             return Path.GetDirectoryName(GetProjectDirectory());
         }
 

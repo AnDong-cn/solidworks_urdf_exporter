@@ -3,6 +3,7 @@
 - 上游：`882169e28952f0d17c87d7eab98826454421aabf`。
 - 插件源码及安装包：`37ac0b0`，产品版本 `1.6.1-16-g37ac0b0-step.1`。
 - 环境：Windows x64、SolidWorks 2025 SP0.0、VS2022 Community 17.14.31、.NET Framework 4.8，Release x64。
+- 已补齐 VS2022 的 .NET 桌面开发、.NET Framework 4.8 SDK 和目标包，并安装系统 .NET SDK 9.0.313。强制使用系统 4.8 目标包重新编译插件成功，系统 SDK 编译测试运行器成功；此验证使用独立输出目录，未改变已安装的插件 DLL。
 
 ## 结果
 

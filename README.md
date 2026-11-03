@@ -28,19 +28,11 @@ See the [ROS Wiki](http://wiki.ros.org/sw_urdf_exporter) and associated [tutoria
 
 ## Development
 
-1. Install Visual Studio 2017
-1. Install .NET desktop development
-    1. From Visual Studio: `Tools > Get Tools and Features...`
-    1. Check `.NET desktop development` package
-    1. Select `Modify`
-1. Install the [SolidWorks API tools](https://help.solidworks.com/2019/english/api/sldworksapiprogguide/GettingStarted/SolidWorks_API_Getting_Started_Overview.htm)
-1. Launch Visual Studio with admin privileges. Right click and select `Run as Administrator`
-1. Open `sw2urdf/SW2URDF.sln`  
-1. Enable Debugging
-    1. Right click `SW2URDF` in the Solution Explorer
-    1. Click the `Debug` Tab
-    1. Ensure `Configuration:` is set to `Debug`
-    1. Ensure `Start external program:` is pointing to the SolidWorks executable. For example `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\SLDWORKS.exe`
+1. Install Visual Studio 2022 with the components in `.vsconfig`, plus .NET SDK 8 or later for the test runner.
+1. Install SolidWorks 2025 and its API tools.
+1. Open `SW2URDF.sln` and select `Release|x64`. Normal builds do not register COM and do not require administrator privileges.
+1. Run `powershell -ExecutionPolicy Bypass -File scripts\Build.ps1 -Test -Installer` to build, validate and package.
+1. Follow [STEP-EXPORT.md](STEP-EXPORT.md) for installation, backup and rollback. See [VALIDATION.md](VALIDATION.md) for the local verification results.
 
 ## Converting mesh format from 3dxml to dae
 

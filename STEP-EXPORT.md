@@ -8,7 +8,7 @@
 
 ## 编译
 
-VS2022 安装 `.vsconfig` 中的 .NET 桌面开发及 .NET Framework 4.8 SDK/目标包，另安装 .NET 8 SDK（测试运行器使用 SDK 格式工程）。SolidWorks API 默认从 `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS` 引用；自定义安装位置时传入 MSBuild 属性 `SolidWorksDir`。NuGet 依赖版本保持上游不变。
+VS2022 安装 `.vsconfig` 中的 .NET 桌面开发及 .NET Framework 4.8 SDK/目标包，另需 .NET 8 或更高版本 SDK（测试运行器使用 SDK 格式工程）。SolidWorks API 默认从 `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS` 引用；自定义安装位置时传入 MSBuild 属性 `SolidWorksDir`。NuGet 依赖版本保持上游不变。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\Build.ps1 -Test -Installer

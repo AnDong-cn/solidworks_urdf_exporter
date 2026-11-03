@@ -64,6 +64,11 @@ namespace TestRunner
 
         static void OnDiscoveryComplete(DiscoveryCompleteInfo info)
         {
+            if (info.TestCasesToRun == 0)
+            {
+                Console.Error.WriteLine("No tests matched the filter: " + TestNameFilter);
+                result = 1;
+            }
             lock (consoleLock)
                 Console.WriteLine($"Running {info.TestCasesToRun} of {info.TestCasesDiscovered} tests...");
         }
